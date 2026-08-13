@@ -20,3 +20,18 @@ env/
 .DS_Store
 .idea/
 .vscode/
+
+# Project-generated data
+data/raw/
+data/processed/
+
+# Trained models
+models/*.joblib
+models/*.pkl
+
+# Generated reports and metrics
+reports/figures/
+reports/metrics/
+
+# Generated threshold files
+models/threshold.json
