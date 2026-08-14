@@ -184,39 +184,90 @@ def find_best_threshold(
     return best
 
 
-# =========================================================
-# SAVE POLICY ARTIFACTS
-# =========================================================
-
-def save_policy(
+def build_threshold_policy_candidates(
     threshold_results: list[dict],
-    best_threshold: dict,
-) -> None:
-    """
-    Save threshold search results and the selected policy.
-    """
+) -> list[dict]:
+    """Build key threshold policy candidate options."""
 
-    METRICS_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
+    if not threshold_results:
+        return []
+
+    cost_opt = min(
+        threshold_results,
+        key=lambda r: (r["cost"], -r["recall"]),
     )
 
-    # -----------------------------------------------------
-    # JSON
-    # -----------------------------------------------------
+    bal_f1 = max(
+        threshold_results,
+        key=lambda r: (r["f1"], r["recall"]),
+    )
 
-    json_path = METRICS_DIR / "threshold_policy.json"
+    hi_rec = max(
+        threshold_results,
+        key=lambda r: (r["recall"], -r["cost"]),
+    )
 
-    policy = {
+    hi_prec = max(
+        threshold_results,
+        key=lambda r: (r["precision"], r["recall"]),
+    )
+
+    rev_cap = min(
+        threshold_results,
+        key=lambda r: (abs(r["flagged_rate"] - 0.10), r["cost"]),
+    )
+
+    return [
+        {
+            **cost_opt,
+            "policy": "cost_optimized",
+            "rationale": "Minimizes total business cost under given cost weights",
+        },
+        {
+            **bal_f1,
+            "policy": "balanced_f1",
+            "rationale": "Maximizes harmonic mean of precision and recall",
+        },
+        {
+            **hi_rec,
+            "policy": "high_recall",
+            "rationale": "Prioritizes capturing maximum fraud cases",
+        },
+        {
+            **hi_prec,
+            "policy": "high_precision",
+            "rationale": "Minimizes false positive review volume",
+        },
+        {
+            **rev_cap,
+            "policy": "review_capacity",
+            "rationale": "Target review capacity around 10% volume",
+        },
+    ]
+
+
+def build_threshold_policy_summary(
+    threshold_results: list[dict],
+    best_threshold: dict,
+    cost_false_positive: float = COST_FALSE_POSITIVE,
+    cost_false_negative: float = COST_FALSE_NEGATIVE,
+) -> dict:
+    """Build full summary of threshold policy and candidates."""
+
+    candidates = build_threshold_policy_candidates(threshold_results)
+
+    return {
         "purpose": (
             "Cost-sensitive decision threshold for "
             "IEEE-CIS fraud-risk analyst review."
         ),
+        "recommended_policy": "cost_optimized",
         "recommended_threshold": best_threshold,
         "cost_assumptions": {
-            "false_positive_cost": COST_FALSE_POSITIVE,
-            "false_negative_cost": COST_FALSE_NEGATIVE,
+            "false_positive_cost": float(cost_false_positive),
+            "false_negative_cost": float(cost_false_negative),
         },
+        "policy_candidates": candidates,
         "threshold_results": threshold_results,
         "interpretation": (
             "A transaction is flagged for analyst review when "
@@ -225,48 +276,59 @@ def save_policy(
         ),
     }
 
+
+def save_threshold_policy_artifacts(
+    threshold_results: list[dict],
+    best_threshold: dict,
+    metrics_dir: Path | None = None,
+    cost_false_positive: float = COST_FALSE_POSITIVE,
+    cost_false_negative: float = COST_FALSE_NEGATIVE,
+) -> dict[str, Path]:
+    """Save policy JSON, CSV, and Markdown documentation."""
+
+    if metrics_dir is None:
+        metrics_dir = METRICS_DIR
+
+    metrics_dir = Path(metrics_dir)
+    metrics_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    summary = build_threshold_policy_summary(
+        threshold_results,
+        best_threshold,
+        cost_false_positive=cost_false_positive,
+        cost_false_negative=cost_false_negative,
+    )
+
+    json_path = metrics_dir / "threshold_policy.json"
     with json_path.open(
         "w",
         encoding="utf-8",
     ) as file:
         json.dump(
-            policy,
+            summary,
             file,
             indent=2,
         )
 
-    # -----------------------------------------------------
-    # CSV
-    # -----------------------------------------------------
-
-    csv_path = METRICS_DIR / "threshold_results.csv"
-
+    csv_path = metrics_dir / "threshold_results.csv"
     if threshold_results:
-
-        fieldnames = list(
-            threshold_results[0].keys()
-        )
-
+        fieldnames = list(threshold_results[0].keys())
         with csv_path.open(
             "w",
             newline="",
             encoding="utf-8",
         ) as file:
-
             writer = csv.DictWriter(
                 file,
                 fieldnames=fieldnames,
             )
-
             writer.writeheader()
             writer.writerows(threshold_results)
 
-    # -----------------------------------------------------
-    # Markdown report
-    # -----------------------------------------------------
-
-    md_path = METRICS_DIR / "threshold_policy.md"
-
+    md_path = metrics_dir / "threshold_policy.md"
     lines = [
         "# IEEE-CIS Fraud Threshold Policy",
         "",
@@ -274,44 +336,54 @@ def save_policy(
         "",
         f"**Threshold:** `{best_threshold['threshold']:.2f}`",
         "",
-        "## Selected performance",
-        "",
-        f"- Precision: `{best_threshold['precision']:.4f}`",
-        f"- Recall: `{best_threshold['recall']:.4f}`",
-        f"- F1 Score: `{best_threshold['f1']:.4f}`",
-        f"- False Positive Rate: `{best_threshold['false_positive_rate']:.4f}`",
-        f"- Flagged Rate: `{best_threshold['flagged_rate']:.4f}`",
-        f"- Total Cost: `{best_threshold['cost']:.0f}`",
-        f"- Normalized Cost: `{best_threshold['normalized_cost']:.6f}`",
-        "",
-        "## Cost assumptions",
-        "",
-        f"- False positive cost: `{COST_FALSE_POSITIVE}`",
-        f"- False negative cost: `{COST_FALSE_NEGATIVE}`",
-        "",
-        "A false negative is considered more expensive because "
-        "missing a fraudulent transaction can cause greater "
-        "financial loss than reviewing a legitimate transaction.",
-        "",
-        "## Analyst workflow",
-        "",
-        "Transactions with fraud probability greater than or "
-        "equal to the selected threshold are sent for analyst review.",
-        "",
-        "The threshold is a decision-support policy, not an "
-        "automatic transaction-blocking rule.",
+        "## Policy candidates",
         "",
     ]
+
+    for candidate in summary["policy_candidates"]:
+        lines.append(
+            f"- **{candidate['policy']}**: threshold `{candidate['threshold']:.2f}` ({candidate['rationale']})"
+        )
+
+    lines.extend(
+        [
+            "",
+            "## Cost assumptions",
+            "",
+            f"- False positive cost: `{cost_false_positive}`",
+            f"- False negative cost: `{cost_false_negative}`",
+            "",
+        ]
+    )
 
     md_path.write_text(
         "\n".join(lines),
         encoding="utf-8",
     )
 
+    return {
+        "json": json_path,
+        "csv": csv_path,
+        "markdown": md_path,
+    }
+
+
+def save_policy(
+    threshold_results: list[dict],
+    best_threshold: dict,
+) -> None:
+    """Save threshold search results and the selected policy."""
+
+    artifacts = save_threshold_policy_artifacts(
+        threshold_results,
+        best_threshold,
+    )
+
     print("\nPolicy artifacts saved:")
-    print(f"JSON:     {json_path}")
-    print(f"CSV:      {csv_path}")
-    print(f"Markdown: {md_path}")
+    print(f"JSON:     {artifacts['json']}")
+    print(f"CSV:      {artifacts['csv']}")
+    print(f"Markdown: {artifacts['markdown']}")
+
 
 
 # =========================================================

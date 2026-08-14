@@ -71,21 +71,21 @@ def validate_no_missing_required_values(
 
 
 def validate_numeric_features(df: pd.DataFrame, *, context: str = "dataframe") -> None:
-    """Validate that numeric features can be interpreted as finite numeric values."""
+    """Validate that numeric features can be interpreted as numeric values when present."""
     errors: dict[str, str] = {}
 
     for col in NUMERIC_FEATURES:
         if col not in df.columns:
             continue
 
-        numeric = pd.to_numeric(df[col], errors="coerce")
-
-        if numeric.isna().any():
-            errors[col] = "contains non-numeric or missing values"
+        non_nulls = df[col].dropna()
+        if len(non_nulls) == 0:
             continue
 
-        if not np.isfinite(numeric.to_numpy(dtype=float)).all():
-            errors[col] = "contains non-finite values"
+        numeric = pd.to_numeric(non_nulls, errors="coerce")
+
+        if numeric.isna().any():
+            errors[col] = "contains non-numeric values"
 
     if errors:
         raise DataValidationError(f"{context} has invalid numeric features: {errors}")
@@ -118,9 +118,12 @@ def validate_binary_target(df: pd.DataFrame, *, context: str = "dataframe") -> N
 
 
 def validate_training_dataframe(df: pd.DataFrame, *, context: str = "training data") -> None:
-    """Validate a dataframe used for training/evaluation."""
+    """Validate a dataframe used for training/evaluation.
+
+    Required feature and target columns must be present and target must be binary.
+    Missing values in feature columns are permitted as they are handled by the sklearn imputer pipeline.
+    """
     validate_required_columns(df, REQUIRED_TRAINING_COLUMNS, context=context)
-    validate_no_missing_required_values(df, REQUIRED_TRAINING_COLUMNS, context=context)
     validate_numeric_features(df, context=context)
     validate_binary_target(df, context=context)
 
@@ -132,7 +135,6 @@ def validate_scoring_dataframe(df: pd.DataFrame, *, context: str = "scoring data
     preserved in the output but excluded from model features.
     """
     validate_required_columns(df, REQUIRED_FEATURE_COLUMNS, context=context)
-    validate_no_missing_required_values(df, REQUIRED_FEATURE_COLUMNS, context=context)
     validate_numeric_features(df, context=context)
 
 

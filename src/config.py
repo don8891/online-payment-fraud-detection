@@ -19,6 +19,7 @@ IDENTITY_DATA_PATH = RAW_DATA_DIR / "train_identity.csv"
 IEEE_DATA_PATH = PROCESSED_DATA_DIR / "ieee_fraud_dataset.csv"
 TRAIN_DATA_PATH = PROCESSED_DATA_DIR / "ieee_train.csv"
 TEST_DATA_PATH = PROCESSED_DATA_DIR / "ieee_test.csv"
+RAW_DATA_PATH = IEEE_DATA_PATH
 
 MODELS_DIR = PROJECT_ROOT / "models"
 

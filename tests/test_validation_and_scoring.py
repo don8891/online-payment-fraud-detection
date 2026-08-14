@@ -21,33 +21,25 @@ class ValidationAndScoringTests(unittest.TestCase):
     def _demo_transactions(self) -> pd.DataFrame:
         return pd.DataFrame(
             {
-                "transaction_id": range(1, 9),
-                "user_id": [101, 102, 103, 104, 105, 106, 107, 108],
-                "amount": [20.0, 450.0, 35.0, 800.0, 15.0, 900.0, 42.0, 1000.0],
-                "hour": [9, 23, 10, 2, 14, 1, 11, 3],
-                "device_risk_score": [0.05, 0.9, 0.1, 0.85, 0.02, 0.95, 0.07, 0.88],
-                "ip_risk_score": [0.03, 0.8, 0.12, 0.9, 0.04, 0.93, 0.1, 0.86],
-                "transaction_type": [
-                    "purchase",
-                    "transfer",
-                    "purchase",
-                    "transfer",
-                    "purchase",
-                    "transfer",
-                    "purchase",
-                    "transfer",
-                ],
-                "merchant_category": [
-                    "retail",
-                    "crypto",
-                    "grocery",
-                    "electronics",
-                    "retail",
-                    "crypto",
-                    "grocery",
-                    "electronics",
-                ],
-                "country": ["DE", "RU", "DE", "CN", "DE", "RU", "FR", "CN"],
+                "TransactionID": range(1, 9),
+                "TransactionDT": [86400, 86450, 86500, 86550, 86600, 86650, 86700, 86750],
+                "TransactionAmt": [20.0, 450.0, 35.0, 800.0, 15.0, 900.0, 42.0, 1000.0],
+                "card3": [150.0, 150.0, 185.0, 150.0, 150.0, 185.0, 150.0, 150.0],
+                "card5": [226.0, 102.0, 137.0, 226.0, 102.0, 137.0, 226.0, 102.0],
+                "addr1": [315.0, 476.0, 299.0, 315.0, 476.0, 299.0, 315.0, 476.0],
+                "addr2": [87.0, 87.0, 87.0, 87.0, 87.0, 87.0, 87.0, 87.0],
+                "C1": [1.0, 10.0, 2.0, 25.0, 1.0, 30.0, 3.0, 50.0],
+                "C2": [1.0, 8.0, 2.0, 20.0, 1.0, 25.0, 2.0, 40.0],
+                "C5": [0.0, 2.0, 0.0, 5.0, 0.0, 10.0, 1.0, 15.0],
+                "C13": [1.0, 15.0, 3.0, 30.0, 1.0, 40.0, 2.0, 60.0],
+                "D1": [14.0, 0.0, 10.0, 1.0, 30.0, 0.0, 5.0, 0.0],
+                "D2": [14.0, 0.0, 10.0, 1.0, 30.0, 0.0, 5.0, 0.0],
+                "ProductCD": ["W", "C", "W", "C", "W", "C", "W", "C"],
+                "card4": ["visa", "mastercard", "visa", "mastercard", "visa", "mastercard", "visa", "mastercard"],
+                "card6": ["debit", "credit", "debit", "credit", "debit", "credit", "debit", "credit"],
+                "P_emaildomain": ["gmail.com", "anonymous.com", "yahoo.com", "anonymous.com", "gmail.com", "anonymous.com", "yahoo.com", "anonymous.com"],
+                "R_emaildomain": ["gmail.com", "hotmail.com", "yahoo.com", "hotmail.com", "gmail.com", "hotmail.com", "yahoo.com", "hotmail.com"],
+                "DeviceType": ["desktop", "mobile", "desktop", "mobile", "desktop", "mobile", "desktop", "mobile"],
                 TARGET_COL: [0, 1, 0, 1, 0, 1, 0, 1],
             }
         )
@@ -67,8 +59,8 @@ class ValidationAndScoringTests(unittest.TestCase):
 
     def test_invalid_numeric_feature_raises(self) -> None:
         df = self._demo_transactions()
-        df["amount"] = df["amount"].astype(object)
-        df.loc[0, "amount"] = "not-a-number"
+        df["TransactionAmt"] = df["TransactionAmt"].astype(object)
+        df.loc[0, "TransactionAmt"] = "not-a-number"
         with self.assertRaisesRegex(DataValidationError, "invalid numeric"):
             validate_scoring_dataframe(df)
 
@@ -109,3 +101,4 @@ class ValidationAndScoringTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
